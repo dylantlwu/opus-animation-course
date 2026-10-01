@@ -2,7 +2,7 @@
 
 用 Claude Opus 5.5 **写代码**做科普解说与动态图形视频的中文自学课程：教学网站 + 练习工程。
 
-**在线阅读：https://dylantlwu.github.io/opus-animation-course/**
+**在线阅读：https://course.oxygentwo.com**
 
 > 2026 年 9 月 Opus 5.5 发布后，X 上出现大量「Opus 直接做的视频」。它们都不是视频生成模型的产物——Opus 写 HTML / Canvas / SVG / Remotion / bpy 代码画出每一帧，无头浏览器或 Blender 逐帧渲染，ffmpeg 合成 MP4。这门课教你把这件事做稳定：**技术 / 导演 / 编剧三线并进**。
 
@@ -30,6 +30,15 @@ node render/render.mjs templates/canvas/index.html --clip --out=out/hello.mp4
 
 # 和 Opus 一起做片子
 cd studio && claude --model opus --effort xhigh
+```
+
+## 部署
+
+网站托管在 Railway（项目 `opus-animation-course`，服务 `course-site`），域名 `course.oxygentwo.com` 经 Cloudflare CNAME 指向 Railway。
+仓库根目录的 `Dockerfile` 先用 Node 构建 VitePress，再用 Caddy（`Caddyfile`）托管静态文件。更新网站：
+
+```bash
+railway up --service course-site      # 在仓库根目录执行
 ```
 
 ## 目录
