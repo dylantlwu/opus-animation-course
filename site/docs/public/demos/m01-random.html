@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>M1 · 反例：Math.random 与帧间状态</title>
+<style>html,body{margin:0;height:100%;background:#101116;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// ⚠️ 这是一个故意写错的反例：左半边违反契约。用 render.mjs --verify 跑它，看它怎么报错。
+window.__meta = { duration: 4, fps: 30, width: 1920, height: 1080 };
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+const FONT = '"PingFang SC","Noto Sans SC",sans-serif';
+const hash = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+let badX = 0; // ❌ 跨帧累加的状态：每调用一次 seek 就往右走一点，跟 t 无关
+
+function panel(x0, title, sub, color) {
+  ctx.fillStyle = '#16171e'; ctx.fillRect(x0 + 40, 200, 880, 760);
+  ctx.font = `700 40px ${FONT}`; ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.fillText(title, x0 + 80, 280);
+  ctx.font = `400 24px ${FONT}`; ctx.fillStyle = '#8d90a0'; ctx.fillText(sub, x0 + 80, 322);
+}
+
+window.seek = (t) => {
+  ctx.fillStyle = '#101116'; ctx.fillRect(0, 0, W, H);
+  ctx.font = `700 46px ${FONT}`; ctx.fillStyle = '#f2efe8'; ctx.textAlign = 'left';
+  ctx.fillText('拖动时间轴、来回逐帧：左边会「重新洗牌」，右边纹丝不动', 80, 120);
+
+  panel(0, '❌ Math.random + 累加状态', '同一个 t，每次画出来都不一样', '#ff5a36');
+  for (let i = 0; i < 70; i++) {
+    ctx.fillStyle = '#ff5a36';
+    ctx.globalAlpha = 0.35 + Math.random() * 0.65;
+    ctx.fillRect(80 + Math.random() * 800, 360 + Math.random() * 440, 6, 6);
+  }
+  ctx.globalAlpha = 1;
+  badX = (badX + 14) % 780;
+  ctx.beginPath(); ctx.arc(110 + badX, 880, 26, 0, 7); ctx.fill();
+
+  panel(960, '✅ hash(i) + t 的函数', '同一个 t，永远是同一帧', '#3ccf8e');
+  for (let i = 0; i < 70; i++) {
+    ctx.fillStyle = '#3ccf8e';
+    ctx.globalAlpha = 0.35 + hash(i + 7) * 0.65 * (0.6 + 0.4 * Math.sin(t * 3 + i)); // 闪烁也只由 t 决定
+    ctx.fillRect(1040 + hash(i) * 800, 360 + hash(i + 500) * 440 + Math.sin(t * 2 + i) * 8, 6, 6);
+  }
+  ctx.globalAlpha = 1;
+  const goodX = ((t / window.__meta.duration) * 780);
+  ctx.beginPath(); ctx.arc(1070 + goodX, 880, 26, 0, 7); ctx.fill();
+};
+window.seek(0);
+</script></body></html>

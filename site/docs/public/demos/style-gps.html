@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>风格专题 · 同一内容 × 4 种风格</title>
+<style>html,body{margin:0;height:100%;background:#111;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// 同一个镜头（M3 的 GPS reads），四种风格。内容和 reads 时间表完全相同，只有「风格」不同。
+// 无参数 = 2×2 同步对照；?s=swiss | manim | board | ink = 单一风格全屏。
+window.__meta = { duration: 6, fps: 30, width: 1920, height: 1080 };
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+
+// ───────── 纯函数工具 ─────────
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const hash = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const smoother = (x) => x * x * x * (x * (6 * x - 15) + 10);          // Manim 式平滑
+const inOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;            // 白板笔画：慢-快-慢
+const on12 = (t) => Math.floor(t * 12) / 12;                           // 一拍二：每秒 12 格
+function cubicBezier(x1, y1, x2, y2) {                                  // CSS cubic-bezier 的纯函数版
+  const B = (a, b, t) => 3 * a * t * (1 - t) ** 2 + 3 * b * t * t * (1 - t) + t ** 3;
+  return (x) => { if (x <= 0) return 0; if (x >= 1) return 1;
+    let lo = 0, hi = 1, t = x; for (let i = 0; i < 24; i++) { t = (lo + hi) / 2; B(x1, x2, t) < x ? (lo = t) : (hi = t); }
+    return B(y1, y2, t); };
+}
+const snap = cubicBezier(0.7, 0, 0.2, 1);                              // 瑞士风唯一的缓动
+
+// ───────── 共享内容：reads 时间表与几何（四种风格完全一样）─────────
+const R = { title: [0.2, 1.3], sat0: [1.3, 2.5], sats: [2.5, 3.7], answer: [3.7, 6] };
+const RX = 960, RY = 760;                                              // 接收机
+const SATS = [[470, 400], [800, 300], [1150, 320], [1460, 420]];
+const TITLE = '为什么 GPS 至少要 4 颗卫星？';
+const ANSWER = ['= 位置 x · y · z', '+ 接收机时钟误差'];
+const satIn = (t, i) => (i === 0 ? range(t, R.sat0[0] + 0.25, R.sat0[0] + 0.85) : range(t, R.sats[0] + (i - 1) * 0.3, R.sats[0] + (i - 1) * 0.3 + 0.6));
+
+// 画折线的前 p（0→1，按长度）部分
+function strokePart(pts, p) {
+  if (p <= 0) return;
+  const seg = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i][0], q[1] - pts[i][1]));
+  let left = seg.reduce((a, b) => a + b, 0) * clamp(p);
+  ctx.beginPath(); ctx.moveTo(...pts[0]);
+  for (let i = 0; i < seg.length && left > 0; i++) {
+    const k = Math.min(1, left / seg[i]);
+    ctx.lineTo(lerp(pts[i][0], pts[i + 1][0], k), lerp(pts[i][1], pts[i + 1][1], k));
+    left -= seg[i];
+  }
+  ctx.stroke();
+}
+const arcPts = (cx, cy, r, a0, a1, n = 80) => Array.from({ length: n + 1 }, (_, i) => { const a = lerp(a0, a1, i / n); return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; });
+const linePts = (a, b, n = 24) => Array.from({ length: n + 1 }, (_, i) => [lerp(a[0], b[0], i / n), lerp(a[1], b[1], i / n)]);
+// 手绘抖动：固定种子（同一条线永远同样地抖），垂直于走向偏移
+const wobble = (pts, seed, amp = 3) => pts.map(([x, y], i) => { const k = Math.sin(i * 0.9 + seed) * 0.6 + (hash(seed * 31 + i) - 0.5) * 0.8; return [x + k * amp, y + k * amp * 0.7]; });
+const EARTH = arcPts(RX, RY + 1240, 1240, Math.PI * 1.32, Math.PI * 1.68);
+
+// ═════════ ① 瑞士国际主义：网格、左对齐、一个信号色、只用吸附缓动、裁切揭示、不淡入 ═════════
+function swiss(t) {
+  const PAPER = '#F1EFE9', INK = '#111', RED = '#E3000F';
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#E2DED4'; ctx.lineWidth = 1;
+  for (let c = 0; c <= 12; c++) { const x = 120 + c * 140; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  // 标题：从遮罩线下升起（clip-reveal），不淡入
+  const k = snap(range(t, R.title[0], R.title[0] + 0.5));
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 120, W, 110); ctx.clip();
+  ctx.font = '800 76px "PingFang SC", sans-serif'; ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(TITLE, 120, 210 + (1 - k) * 110); ctx.restore();
+  ctx.fillStyle = INK; ctx.fillRect(120, 248, 1680 * range(t, R.title[0] + 0.3, R.title[0] + 0.9), 4); // 细线：linear
+  // 地面基线 + 接收机
+  ctx.fillRect(120, RY, 1680 * range(t, R.sat0[0], R.sat0[0] + 0.4), 3);
+  const rk = snap(range(t, R.sat0[0] + 0.2, R.sat0[0] + 0.5));
+  ctx.fillStyle = RED; ctx.fillRect(RX - 16, RY - 32 * rk, 32, 32 * rk);
+  // 卫星：方块裁切出现；测距线 linear 画出
+  SATS.forEach(([x, y], i) => {
+    const s = snap(satIn(t, i)); if (s <= 0) return;
+    ctx.fillStyle = INK; ctx.fillRect(x - 22, y - 22, 44, 44 * s);
+    const l = range(satIn(t, i), 0.4, 1);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y + 22); ctx.lineTo(lerp(x, RX, l), lerp(y + 22, RY - 32, l)); ctx.stroke();
+  });
+  // 答案：巨大的红色 4，刀切式从左揭示
+  const a = snap(range(t, R.answer[0], R.answer[0] + 0.5));
+  ctx.save(); ctx.beginPath(); ctx.rect(108, 800, 1700 * a, 280); ctx.clip();   // a=0 时宽度为 0，不漏边
+  ctx.font = '800 240px "PingFang SC", sans-serif'; ctx.fillStyle = RED; ctx.fillText('4', 112, 1040);
+  ctx.font = '600 44px "PingFang SC", sans-serif'; ctx.fillStyle = INK; ctx.fillText(ANSWER[0], 300, 930); ctx.fillText(ANSWER[1], 300, 996);
+  ctx.restore();
+}
+
+// ═════════ ② 3B1B 数学风：深底、蓝黄绿、Write 式画出、距离 = 球面（圆）、旧元素变暗再揭示新元素 ═════════
+function manim(t) {
+  const BG = '#1C1C1C', WHITE = '#ECECEC', BLUE = '#58C4DD', YELLOW = '#FFFF00', GREEN = '#83C167';
+  ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H);
+  const dimOld = 1 - 0.6 * smoother(range(t, R.sats[0], R.sats[0] + 0.5));   // 新信息来了，旧的变暗
+  const dimAll = 1 - 0.55 * smoother(range(t, R.answer[0], R.answer[0] + 0.5));
+  // 标题：Write（从左到右写出）
+  const k = smoother(range(t, R.title[0], R.title[0] + 0.9));
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 360 + 1300 * k, 300); ctx.clip();
+  ctx.globalAlpha = dimAll; ctx.font = '300 64px "PingFang SC", sans-serif'; ctx.fillStyle = WHITE; ctx.textAlign = 'center';
+  ctx.fillText(TITLE, W / 2, 170); ctx.restore(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = WHITE; ctx.lineWidth = 3; ctx.globalAlpha = 0.8 * dimAll;
+  strokePart(EARTH, smoother(range(t, R.sat0[0], R.sat0[0] + 0.7))); ctx.globalAlpha = 1;
+  // 每颗卫星：一个点 + 一个「距离球面」（圆）
+  SATS.forEach(([x, y], i) => {
+    const s = smoother(satIn(t, i)); if (s <= 0) return;
+    const r = Math.hypot(RX - x, RY - y);
+    ctx.globalAlpha = (i === 0 ? dimOld : 1) * dimAll;
+    ctx.strokeStyle = BLUE; ctx.lineWidth = 2;
+    const a0 = Math.atan2(RY - y, RX - x);
+    ctx.beginPath(); ctx.arc(x, y, r, a0 - Math.PI * s, a0 + Math.PI * s); ctx.stroke();
+    ctx.fillStyle = BLUE; ctx.beginPath(); ctx.arc(x, y, 12 * Math.min(1, s * 3), 0, 7); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  const rk = smoother(range(t, R.sat0[0] + 0.3, R.sat0[0] + 0.7));
+  ctx.fillStyle = YELLOW; ctx.beginPath(); ctx.arc(RX, RY, 11 * rk, 0, 7); ctx.fill();
+  // 答案：黄色的 4 + 绿色变量，揭示后停顿
+  const a = smoother(range(t, R.answer[0], R.answer[0] + 0.8));
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 820, 560 + 900 * a, 260); ctx.clip();
+  ctx.textAlign = 'left'; ctx.font = 'italic 400 150px "Times New Roman", serif'; ctx.fillStyle = YELLOW; ctx.fillText('4', 560, 1010);
+  ctx.font = '300 44px "PingFang SC", sans-serif'; ctx.fillStyle = GREEN; ctx.fillText(ANSWER[0], 680, 935);
+  ctx.fillStyle = WHITE; ctx.fillText(ANSWER[1], 680, 1000); ctx.restore();
+}
+
+// ═════════ ③ 白板手绘：纯白底、≤3 色马克笔且含义固定、逐笔画出（慢-快-慢）、手写字体 ═════════
+function board(t) {
+  const BLACK = '#222', BLUE = '#1F5FBF', RED = '#D7263D';   // 黑=结构 蓝=卫星 红=答案/你
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // 标题：逐字「写」出来
+  const n = Math.floor([...TITLE].length * range(t, R.title[0], R.title[0] + 1.0));
+  ctx.font = '64px "HanziPen SC", "Hannotate SC", "KaiTi", cursive'; ctx.fillStyle = BLACK; ctx.textAlign = 'left';
+  ctx.fillText([...TITLE].slice(0, n).join(''), 150, 180);
+  ctx.strokeStyle = BLACK; ctx.lineWidth = 5;
+  strokePart(wobble(linePts([150, 215], [1150, 210]), 3, 2), inOutSine(range(t, R.title[0] + 0.8, R.title[1] + 0.2)));
+  // 地球：手绘弧线；你：红色小人
+  ctx.lineWidth = 6; strokePart(wobble(EARTH, 7, 4), inOutSine(range(t, R.sat0[0], R.sat0[0] + 0.6)));
+  const pk = inOutSine(range(t, R.sat0[0] + 0.4, R.sat0[0] + 0.8));
+  ctx.strokeStyle = RED; ctx.lineWidth = 5;
+  strokePart(arcPts(RX, RY - 52, 14, 0, Math.PI * 2, 20), pk);
+  strokePart(wobble([[RX, RY - 38], [RX, RY - 12], [RX - 14, RY], [RX, RY - 12], [RX + 14, RY]], 2, 1), pk);
+  // 卫星：带太阳翼的小方块 + 虚线测距
+  SATS.forEach(([x, y], i) => {
+    const s = inOutSine(satIn(t, i)); if (s <= 0) return;
+    ctx.strokeStyle = BLUE; ctx.lineWidth = 5;
+    strokePart(wobble([[x - 18, y - 14], [x + 18, y - 14], [x + 18, y + 14], [x - 18, y + 14], [x - 18, y - 14]], 11 + i, 1.5), s);
+    strokePart([[x - 18, y], [x - 50, y]], range(s, 0.5, 0.8)); strokePart([[x + 18, y], [x + 50, y]], range(s, 0.6, 0.9));
+    ctx.setLineDash([14, 12]); ctx.lineWidth = 3;
+    strokePart(wobble(linePts([x, y + 18], [RX, RY - 70]), 20 + i, 2), range(s, 0.5, 1));
+    ctx.setLineDash([]);
+  });
+  // 答案：红色的 4，外面画一个圈
+  const a = range(t, R.answer[0], R.answer[0] + 1.2);
+  ctx.font = '150px "HanziPen SC", "Hannotate SC", "KaiTi", cursive'; ctx.fillStyle = RED; ctx.globalAlpha = a > 0 ? 1 : 0; ctx.fillText('4', 560, 1010);
+  ctx.globalAlpha = 1; ctx.strokeStyle = RED; ctx.lineWidth = 5;
+  strokePart(wobble(arcPts(605, 955, 95, -1.2, Math.PI * 2 - 0.9, 60), 5, 3), inOutSine(range(a, 0.15, 0.6)));
+  ctx.font = '50px "HanziPen SC", "Hannotate SC", "KaiTi", cursive'; ctx.fillStyle = BLACK;
+  const m = Math.floor([...ANSWER.join('')].length * range(a, 0.4, 1));
+  const chars = [...ANSWER[0]], l0 = Math.min(m, chars.length);
+  ctx.fillText(chars.slice(0, l0).join(''), 740, 935); ctx.fillText([...ANSWER[1]].slice(0, Math.max(0, m - chars.length)).join(''), 740, 1005);
+}
+
+// ═════════ ④ 国风水墨：宣纸、五墨阶、留白、一拍二（每秒 12 格）、墨晕、朱印只出现一次 ═════════
+function ink(t0) {
+  const t = on12(t0);                                         // 手工媒介：画面元素按 12fps 变化
+  const PAPER = '#F3EDE0', JIAO = '#141414', NONG = '#2B2B2B', DAN = 'rgba(40,40,40,0.35)', ZHU = '#C8361F';
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 500; i++) {                            // 宣纸纤维：固定种子，永远同一张纸
+    ctx.strokeStyle = `rgba(120,100,70,${0.05 + hash(i + 3) * 0.07})`; ctx.lineWidth = 1;
+    const x = hash(i) * W, y = hash(i + 900) * H, a = hash(i + 77) * Math.PI;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 14, y + Math.sin(a) * 14); ctx.stroke();
+  }
+  // 标题：行楷，左上，大留白；墨色由淡转浓（晕开）
+  const k = outExpo(range(t, R.title[0], R.title[0] + 0.8));
+  ctx.font = '72px "Xingkai SC", "Kaiti SC", "STKaiti", "KaiTi", serif'; ctx.textAlign = 'left'; ctx.fillStyle = JIAO;
+  ctx.globalAlpha = k; ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 18 * (1 - k) + 2;
+  ctx.fillText(TITLE, 150, 200); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  // 地平线：一笔浓墨，中间粗、两端出锋，末端飞白
+  const p = range(t, R.sat0[0], R.sat0[0] + 0.7);
+  const N = EARTH.length - 1, upto = Math.floor(N * p);
+  for (let i = 0; i < upto; i++) {
+    const s = i / N, w = 3 + 16 * Math.pow(Math.sin(Math.PI * s), 0.7);
+    ctx.strokeStyle = NONG; ctx.lineCap = 'round';
+    if (s < 0.8) { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(...EARTH[i]); ctx.lineTo(...EARTH[i + 1]); ctx.stroke(); continue; }
+    for (let b = 0; b < 5; b++) {                              // 飞白：笔锋散成几根细丝，越往后断得越多
+      if (hash(i * 13 + b) < (s - 0.8) * 3) continue;
+      const off = (b - 2) * w * 0.22; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(EARTH[i][0], EARTH[i][1] + off); ctx.lineTo(EARTH[i + 1][0], EARTH[i + 1][1] + off); ctx.stroke();
+    }
+  }
+  // 你：一点焦墨
+  const rk = outExpo(range(t, R.sat0[0] + 0.4, R.sat0[0] + 0.8));
+  ctx.fillStyle = JIAO; ctx.beginPath(); ctx.arc(RX, RY - 22, 14 * rk, 0, 7); ctx.fill();
+  // 卫星：滴墨晕开；测距：淡墨干笔
+  SATS.forEach(([x, y], i) => {
+    const s = outExpo(satIn(t, i)); if (s <= 0) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 46 * s);
+    g.addColorStop(0, NONG); g.addColorStop(0.45, 'rgba(43,43,43,0.85)'); g.addColorStop(1, 'rgba(43,43,43,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 46 * s, 0, 7); ctx.fill();
+    ctx.strokeStyle = DAN; ctx.lineWidth = 3;
+    const l = range(satIn(t, i), 0.35, 1);
+    for (let j = 0; j < 3; j++) {                               // 三丝干笔
+      ctx.beginPath(); ctx.moveTo(x + j * 3, y + 30); ctx.lineTo(lerp(x + j * 3, RX + j * 3, l), lerp(y + 30, RY - 40, l)); ctx.stroke();
+    }
+  });
+  // 答案：楷书；最后盖一枚朱印（全片只用一次朱砂）
+  const a = outExpo(range(t, R.answer[0], R.answer[0] + 0.8));
+  ctx.globalAlpha = a; ctx.fillStyle = JIAO;
+  ctx.font = '150px "Xingkai SC", "Kaiti SC", "STKaiti", "KaiTi", serif'; ctx.fillText('四', 520, 1010);
+  ctx.font = '48px "Kaiti SC", "STKaiti", "KaiTi", serif'; ctx.fillText(ANSWER[0], 700, 935); ctx.fillText(ANSWER[1], 700, 1000);
+  ctx.globalAlpha = 1;
+  const st = range(t, R.answer[0] + 1.0, R.answer[0] + 1.25);
+  if (st > 0) {
+    const sc = lerp(1.25, 1, st);                               // 按下去：从大到正好
+    ctx.save(); ctx.translate(1240, 960); ctx.scale(sc, sc);
+    ctx.fillStyle = ZHU; ctx.fillRect(-48, -48, 96, 96);
+    ctx.font = '64px "Kaiti SC", "STKaiti", "KaiTi", serif'; ctx.fillStyle = PAPER; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('定', 0, 4); ctx.restore(); ctx.textBaseline = 'alphabetic';
+  }
+}
+
+// ───────── 组装 ─────────
+const STYLES = { swiss: ['瑞士国际主义', swiss], manim: ['3B1B 数学风', manim], board: ['白板手绘', board], ink: ['国风水墨', ink] };
+const only = new URLSearchParams(location.search).get('s');
+window.seek = (t) => {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.setLineDash([]); ctx.shadowBlur = 0;
+  if (STYLES[only]) { STYLES[only][1](t); return; }
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  Object.values(STYLES).forEach(([name, draw], i) => {
+    const qx = (i % 2) * 963, qy = Math.floor(i / 2) * 543;
+    ctx.save(); ctx.translate(qx, qy); ctx.scale(957 / W, 537 / H);
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip(); draw(t); ctx.restore();
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.setLineDash([]);
+    ctx.font = '600 22px "PingFang SC", sans-serif'; const w = ctx.measureText(name).width;
+    ctx.fillStyle = 'rgba(17,17,17,0.82)'; ctx.fillRect(qx + 957 - w - 30, qy + 12, w + 20, 34);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(name, qx + 957 - w - 20, qy + 30);
+    ctx.textBaseline = 'alphabetic';
+  });
+};
+window.seek(0);
+</script></body></html>

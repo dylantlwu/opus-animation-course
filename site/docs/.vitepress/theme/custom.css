@@ -1,0 +1,19 @@
+:root {
+  --vp-c-brand-1: #e8492a;
+  --vp-c-brand-2: #ff5a36;
+  --vp-c-brand-3: #ff7a5c;
+  --vp-c-brand-soft: rgba(255, 90, 54, 0.14);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #ff5a36 20%, #ffb347);
+}
+.dark { --vp-c-brand-1: #ff7a5c; }
+
+/* 每课的「六段式」标签 */
+.lesson-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 24px; font-size: 13px; }
+.lesson-meta span { padding: 2px 10px; border-radius: 999px; background: var(--vp-c-default-soft); }
+.lesson-meta span.tech { background: rgba(80, 140, 255, 0.15); }
+.lesson-meta span.dir { background: rgba(255, 90, 54, 0.15); }
+.lesson-meta span.write { background: rgba(60, 190, 120, 0.15); }
+
+.vp-doc table { display: table; width: 100%; }
+.vp-doc td, .vp-doc th { vertical-align: top; }

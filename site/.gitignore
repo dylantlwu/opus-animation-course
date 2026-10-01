@@ -1,0 +1,4 @@
+node_modules/
+out/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

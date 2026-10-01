@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DOM/SVG 模板 · seek(t)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f4f1ea; overflow: hidden; }
+  /* 舞台固定 1920×1080，按窗口等比缩放；渲染器视口就是 1920×1080，所以缩放为 1 */
+  #stage { position: absolute; width: 1920px; height: 1080px; left: 50%; top: 50%; transform-origin: 0 0;
+           font-family: "PingFang SC", "Noto Sans SC", sans-serif; color: #15151a; }
+  .word { position: absolute; font-weight: 800; font-size: 120px; letter-spacing: -2px; white-space: nowrap; }
+  /* 禁止 transition / animation：所有样式都由 seek(t) 直接算出来 */
+  * { transition: none !important; animation: none !important; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg width="1920" height="1080" style="position:absolute;inset:0">
+    <circle id="dot" r="0" fill="#ff5a36"/>
+    <path id="arc" fill="none" stroke="#15151a" stroke-width="6" stroke-linecap="round"/>
+  </svg>
+  <div class="word" id="w1">一个想法</div>
+  <div class="word" id="w2">一行代码</div>
+  <div class="word" id="w3">一支片子</div>
+</div>
+<script>
+window.__meta = { duration: 5, fps: 30, width: 1920, height: 1080 };
+
+const stage = document.getElementById('stage');
+const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+  stage.style.transform = `scale(${k}) translate(-50%, -50%)`; };
+addEventListener('resize', fit); fit();
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const outBack = (x, s = 1.7) => 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+const $ = (id) => document.getElementById(id);
+
+// 三个词在 120BPM 的小节线上依次登场（1 拍 = 0.5s，1 小节 = 2s → 0、1、2 秒是强拍）
+const WORDS = [{ id: 'w1', at: 0.2 }, { id: 'w2', at: 1.2 }, { id: 'w3', at: 2.2 }];
+
+window.seek = (t) => {
+  WORDS.forEach(({ id, at }, i) => {
+    const k = outBack(range(t, at, at + 0.5));
+    const el = $(id);
+    el.style.left = '260px';
+    el.style.top = `${300 + i * 170}px`;
+    el.style.opacity = clamp(k * 3);
+    el.style.transform = `translateY(${(1 - k) * 60}px)`;
+    el.style.color = t > at + 0.9 && i < WORDS.length - 1 && t > WORDS[i + 1].at ? '#b9b5ab' : '#15151a';
+  });
+  // 收尾（第 3 小节强拍）：下划线从左扫到右，红点在末端过冲弹出 —— 「句号」
+  const a = outExpo(range(t, 3.0, 3.6));
+  $('arc').setAttribute('d', `M 260 810 L ${260 + 480 * a} 810`);
+  $('arc').style.opacity = a > 0.001 ? 1 : 0; // 零长度的圆头描边也会画出一个点
+  const d = outBack(range(t, 3.5, 3.9), 2.4);
+  $('dot').setAttribute('cx', 780); $('dot').setAttribute('cy', 810);
+  $('dot').setAttribute('r', 22 * d);
+};
+window.seek(0);
+</script>
+</body>
+</html>

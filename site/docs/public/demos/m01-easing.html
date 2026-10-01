@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>M1 · 缓动曲线对比</title>
+<style>html,body{margin:0;height:100%;background:#101116;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+window.__meta = { duration: 3.6, fps: 30, width: 1920, height: 1080 };
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+const FONT = '"PingFang SC","Noto Sans SC",sans-serif';
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+
+// 同样的起点、终点、时长（0.4s → 2.4s），只有「时间怎么流」不同
+const spring = (x, zeta = 0.38, f = 1.6) => {   // 阻尼弹簧的闭式解：不逐帧积分，所以可以任意 seek
+  if (x <= 0) return 0;
+  const w = 2 * Math.PI * f * 2, wd = w * Math.sqrt(1 - zeta * zeta);
+  return 1 - Math.exp(-zeta * w * x) * (Math.cos(wd * x) + (zeta * w / wd) * Math.sin(wd * x));
+};
+const LANES = [
+  { name: '线性 linear', note: '机械、没有重量', f: (x) => x, color: '#7d8190' },
+  { name: '缓入缓出 inOutCubic', note: '稳妥，适合镜头运动', f: (x) => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2), color: '#5aa9ff' },
+  { name: '快到轻落 outExpo', note: 'UI / 文字进场首选', f: (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x)), color: '#3ccf8e' },
+  { name: '过冲 outBack', note: '有弹性，适合「强调」', f: (x) => 1 + 2.7 * Math.pow(x - 1, 3) + 1.7 * Math.pow(x - 1, 2), color: '#ffb347' },
+  { name: '弹簧 spring', note: '物理感，闭式解', f: (x) => spring(x), color: '#ff5a36' },
+];
+const X0 = 560, X1 = 1250, T0 = 0.4, T1 = 2.4; // 终点留出余量：弹簧会过冲约 27%
+
+window.seek = (t) => {
+  ctx.fillStyle = '#101116'; ctx.fillRect(0, 0, W, H);
+  ctx.font = `700 46px ${FONT}`; ctx.fillStyle = '#f2efe8'; ctx.textAlign = 'left';
+  ctx.fillText('同样的距离和时长，不同的「时间曲线」', 80, 110);
+  const p = range(t, T0, T1);
+  LANES.forEach((L, i) => {
+    const y = 230 + i * 165, k = L.f(p);
+    ctx.font = `600 30px ${FONT}`; ctx.fillStyle = L.color; ctx.fillText(L.name, 80, y + 8);
+    ctx.font = `400 22px ${FONT}`; ctx.fillStyle = '#8d90a0'; ctx.fillText(L.note, 80, y + 44);
+    ctx.strokeStyle = '#2b2d37'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(X0, y); ctx.lineTo(X1, y); ctx.stroke();
+    // 前 10 帧的「拖影」：同一函数在过去时刻的取值——证明位置只由 t 决定
+    for (let j = 6; j >= 1; j--) {
+      const pk = L.f(range(t - j / 30, T0, T1));
+      ctx.globalAlpha = 0.08 * (7 - j); ctx.fillStyle = L.color;
+      ctx.beginPath(); ctx.arc(X0 + (X1 - X0) * pk, y, 22, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.fillStyle = L.color;
+    ctx.beginPath(); ctx.arc(X0 + (X1 - X0) * k, y, 24, 0, 7); ctx.fill();
+    // 右侧小图：曲线 + 当前进度点
+    const gx = 1500, gy = y + 55, gw = 300, gh = 110;
+    ctx.strokeStyle = '#2b2d37'; ctx.lineWidth = 2; ctx.strokeRect(gx, gy - gh, gw, gh);
+    ctx.strokeStyle = L.color; ctx.lineWidth = 3; ctx.beginPath();
+    for (let s = 0; s <= 60; s++) { const xx = s / 60; ctx.lineTo(gx + xx * gw, gy - L.f(xx) * gh * 0.7); }
+    ctx.stroke();
+    ctx.fillStyle = '#f2efe8'; ctx.beginPath(); ctx.arc(gx + p * gw, gy - k * gh * 0.7, 6, 0, 7); ctx.fill();
+  });
+};
+window.seek(0);
+</script></body></html>

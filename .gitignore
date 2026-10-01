@@ -1,0 +1,14 @@
+node_modules/
+out/
+.DS_Store
+
+# VitePress 构建产物
+site/docs/.vitepress/cache/
+site/docs/.vitepress/dist/
+
+# 个人文件，不公开
+TODO.md
+.claude/
+
+# 构建时由 site/scripts/sync-demos.mjs 从 studio/templates 复制，唯一来源是 studio/templates
+site/docs/public/demos/tpl-*.html

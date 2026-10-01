@@ -1,0 +1,31 @@
+Course content license
+======================
+
+Copyright (c) 2026 Dylan (dylantlwu)
+
+The course text and teaching materials in this repository — including
+site/docs/**/*.md, README.md, studio/CLAUDE.md, studio/exercises/, and
+studio/styles/ — are licensed under the Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0).
+
+  https://creativecommons.org/licenses/by-nc-sa/4.0/
+  Full legal code: https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+
+You are free to share and adapt this material, under the following terms:
+  - Attribution: give appropriate credit, link to the license, and indicate
+    if changes were made.
+  - NonCommercial: you may not use the material for commercial purposes.
+  - ShareAlike: if you remix, transform, or build upon the material, you must
+    distribute your contributions under the same license.
+
+Third-party works linked or briefly cited in the course (social media posts,
+GitHub repositories, articles) remain the property of their respective owners
+and are not covered by this license.
+
+The source code in this repository is licensed under the MIT License; see LICENSE.
+
+----------------------------------------------------------------------
+中文说明：课程文字与教学材料采用 CC BY-NC-SA 4.0 协议——可以转载、改编，
+但须署名、不得商用、改编作品须以相同协议发布。课程中引用或链接的第三方内容
+（社交媒体帖子、GitHub 仓库、文章）版权归原作者所有，不在本协议范围内。
+代码部分采用 MIT 协议，见 LICENSE。
