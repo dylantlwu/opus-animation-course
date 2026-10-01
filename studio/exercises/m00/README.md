@@ -17,6 +17,22 @@ node render/render.mjs templates/canvas/index.html --sheet=0.3,1,1.8,2.6,3.2,5.5
 node render/render.mjs templates/canvas/index.html --clip --out=out/hello.mp4
 ```
 
+## 找茬
+
+`out/hello.mp4` 里藏着一个穿帮。找到之后回答：
+
+1. 第几秒？
+2. 是什么东西露了馅？
+3. 它向观众泄露了什么？
+4. 两种修法，以及它们给观众的不同感觉：
+
+> 我的回答：
+
+## 我写给 Opus 的修改意见
+
+> 镜头 __（__–__ 秒）：
+> 期望：
+
 ## 第一次和 Opus 合作
 
 ```bash

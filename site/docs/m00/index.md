@@ -86,7 +86,24 @@ open out/hello.mp4
 - `out/check/sheet.png`：6 张关键帧拼在一起，每张标着时间和帧号
 - `out/hello.mp4`：6 秒、1920×1080、30fps
 
-### 4.3 启动 Opus 5.5
+### 4.3 找茬：这支片子里藏着一个穿帮
+
+`hello.mp4` 不是一支完美的片子。它里面**藏着一个穿帮**——一个会向观众「泄露」制作痕迹的地方。
+
+至少看三遍，配合 `out/check/sheet.png` 和网页播放器的逐帧按钮，回答：
+
+1. 它出现在第几秒？
+2. 是什么东西露了馅？
+3. 为什么说它是穿帮——它向观众泄露了什么？
+4. 至少想出两种修法。它们给观众的感觉一样吗？
+
+::: tip 提示
+主角不会骗你。看画面里**最不起眼**的东西。
+:::
+
+答案不在这一页上。找到之后，下一节你会让 Opus 把它修好。
+
+### 4.4 启动 Opus 5.5
 
 ```bash
 cd ~/ops_animation/studio
@@ -98,13 +115,30 @@ claude --model opus --effort xhigh
 
 Claude Code 启动时会自动读取 `studio/CLAUDE.md`——这就是你给它的**导演手册**。打开看一遍，现在不用全懂。
 
-### 4.4 第一次合作
+### 4.5 第一次合作：让 Opus 修你找到的穿帮
 
-把下面这段发给它（替换方括号里的内容）：
+修改意见的格式：**镜头 + 时间 + 问题（现象）+ 期望（具体到秒和数值）**。先自己写好意见，再填进下面的提示词：
 
 ```text
 读 CLAUDE.md。
-把 templates/canvas 复制到 work/hello/，做一支 6 秒的片头：
+把 templates/canvas 复制到 work/hello/，只在副本上改。
+修改意见：
+  镜头 [?]（[起止秒]）：[你看到的现象]
+  期望：[你选的修法，具体到第几秒、用多长时间]
+只改这一处，其他都不要动。改完跑 --verify，再用 --strip 扫切点前后各 0.2 秒给我看，然后停下。
+```
+
+渲染修好的版本，和原版对比：
+
+```bash
+node render/render.mjs work/hello/index.html --clip --out=out/hello-fixed.mp4
+```
+
+**进阶（可选）**：用同样的闸门做一支 6 秒个人片头：
+
+```text
+读 CLAUDE.md。
+把 templates/canvas 复制到 work/intro/，做一支 6 秒的片头：
 - 主题：[你的名字或项目名] 的个人片头
 - 风格：[比如：深色背景、一个强调色、干净的几何图形]
 - 受众：[比如：B 站科技区观众]
@@ -142,7 +176,9 @@ Claude Code 启动时会自动读取 `studio/CLAUDE.md`——这就是你给它�
 
 - [ ] `npm install` 完成，`node render/ffmpeg.mjs -version` 有输出
 - [ ] `out/hello.mp4` 能播放，6 秒
-- [ ] 和 Opus 走完 G0–G3，`work/hello/` 下有 `STORYBOARD.md` 和 `index.html`
-- [ ] `--verify` 对你的片子通过
+- [ ] 找到 `hello.mp4` 里的穿帮，并回答 4.3 的四个问题
+- [ ] 用你写的修改意见让 Opus 修好它（`work/hello/`），`out/hello-fixed.mp4` 里看不到穿帮了
+- [ ] （进阶）和 Opus 走完 G0–G3 做个人片头，`work/intro/` 下有 `STORYBOARD.md` 和 `index.html`
+- [ ] `--verify` 对你改过的片子通过
 - [ ] 5 个爆款的看片笔记写进 `exercises/m00/notes.md`
 - [ ] 在 `CLAUDE.md` 第 6 节加上你的第一条规则（哪怕是「回答用中文」）
