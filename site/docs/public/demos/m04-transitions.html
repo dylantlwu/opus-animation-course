@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>M4 · 转场语法</title>
+<style>html,body{margin:0;height:100%;background:#111;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// 同样两个镜头（A：一个圆 = 卫星信号；B：一个方块 = 手机屏幕），四种转场。转场点都在 2.0s。
+window.__meta = { duration: 4, fps: 30, width: 1920, height: 1080 };
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+const FONT = '"PingFang SC","Noto Sans SC",sans-serif';
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const inOut = (x) => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const CUT = 2.0, QW = 940, QH = 500;
+
+// 镜头内容（在 940×500 的格子坐标里画）
+function shotA(t, cx = 300, r = 90) {                      // 圆在左侧，轻微脉动
+  ctx.fillStyle = '#15161d'; ctx.fillRect(0, 0, QW, QH);
+  ctx.fillStyle = '#5aa9ff'; ctx.beginPath(); ctx.arc(cx, 250, r + 6 * Math.sin(t * 4), 0, 7); ctx.fill();
+  ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#8d90a0'; ctx.fillText('A：信号', 40, 60);
+}
+function shotB(t, sx = 640, size = 180) {                   // 方块在右侧
+  ctx.fillStyle = '#1d1a15'; ctx.fillRect(0, 0, QW, QH);
+  ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.roundRect(sx - size / 2, 250 - size / 2, size, size, 18); ctx.fill();
+  ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#8d90a0'; ctx.fillText('B：手机', 40, 60);
+}
+const LANES = [
+  ['硬切 hard cut', '最常用；切在节拍或句尾', (t) => (t < CUT ? shotA(t) : shotB(t))],
+  ['匹配剪辑 match cut', 'A 结尾的位置/大小 = B 开头的位置/大小', (t) => {
+    if (t < CUT) { const k = inOut(range(t, 1.2, CUT)); shotA(t, lerp(300, 640, k), lerp(90, 100, k)); }
+    else { const k = inOut(range(t, CUT, 2.8)); shotB(t, 640, lerp(200, 180, k)); }
+  }],
+  ['形变 morph', '同一个元素变成下一个东西，不切', (t) => {
+    const k = inOut(range(t, 1.4, 2.6));
+    ctx.fillStyle = k < 0.5 ? '#15161d' : '#1d1a15'; ctx.fillRect(0, 0, QW, QH);
+    const s = lerp(180, 180, k), x = lerp(300, 640, k), rad = lerp(90, 18, k);
+    const c = [lerp(90, 255, k), lerp(169, 179, k), lerp(255, 71, k)].map(Math.round);
+    ctx.fillStyle = `rgb(${c})`; ctx.beginPath(); ctx.roundRect(x - s / 2, 250 - s / 2, s, s, rad); ctx.fill();
+    ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#8d90a0'; ctx.fillText(k < 0.5 ? 'A：信号' : 'B：手机', 40, 60);
+  }],
+  ['擦除 wipe', '一条边划过画面；方向暗示「下一步」', (t) => {
+    const k = inOut(range(t, 1.6, 2.4));
+    shotA(t);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, QW * k, QH); ctx.clip(); shotB(t); ctx.restore();
+    if (k > 0 && k < 1) { ctx.fillStyle = '#f2efe8'; ctx.fillRect(QW * k - 3, 0, 6, QH); }
+  }],
+];
+
+window.seek = (t) => {
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
+  LANES.forEach(([name, note, draw], i) => {
+    const x = 20 + (i % 2) * 960, y = 20 + Math.floor(i / 2) * 540;
+    ctx.save(); ctx.translate(x, y); ctx.beginPath(); ctx.rect(0, 0, QW, QH); ctx.clip(); draw(t); ctx.restore();
+    ctx.font = `700 30px ${FONT}`; ctx.fillStyle = '#f2efe8'; ctx.textAlign = 'right'; ctx.fillText(name, x + QW - 24, y + 52);
+    ctx.font = `400 22px ${FONT}`; ctx.fillStyle = '#8d90a0'; ctx.fillText(note, x + QW - 24, y + 86); ctx.textAlign = 'left';
+  });
+};
+window.seek(0);
+</script></body></html>

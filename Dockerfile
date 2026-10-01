@@ -4,8 +4,9 @@ WORKDIR /app
 COPY site/package.json site/package-lock.json site/
 RUN cd site && npm ci
 COPY site site
-# 构建时 sync-demos 会从这里复制模板 demo
+# 构建时 sync-demos 会从这里复制模板和示例片
 COPY studio/templates studio/templates
+COPY studio/examples studio/examples
 RUN cd site && npm run build
 
 FROM caddy:2-alpine

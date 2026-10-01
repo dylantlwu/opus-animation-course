@@ -12,3 +12,7 @@ TODO.md
 
 # 构建时由 site/scripts/sync-demos.mjs 从 studio/templates 复制，唯一来源是 studio/templates
 site/docs/public/demos/tpl-*.html
+.venv/
+site/docs/public/demos/gps/
+# 可由 audio/tts.py 和 audio/mix.py 重新生成
+studio/examples/*/audio/*.wav

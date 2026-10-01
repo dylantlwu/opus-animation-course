@@ -43,7 +43,7 @@ export default defineConfig({
         ],
       },
       {
-        text: '第二阶段 · 导演工作流 🚧',
+        text: '第二阶段 · 导演工作流',
         collapsed: false,
         items: [
           { text: 'M4 导演 I：视觉语言', link: '/m04/' },

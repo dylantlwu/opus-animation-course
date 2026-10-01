@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>M5 · 单帧跳变</title>
+<style>html,body{margin:0;height:100%;background:#101116;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// ⚠️ 故意埋了一个只持续 1 帧的 bug：镜头 A 的「结束条件」比镜头时长短了 0.04 秒。
+// 全速播放几乎看不出来；用 --strip 扫转场附近就能抓到。加 ?fixed=1 是修好的版本。
+window.__meta = { duration: 4, fps: 30, width: 1920, height: 1080 };
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+const FONT = '"PingFang SC","Noto Sans SC",sans-serif';
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const FIXED = new URLSearchParams(location.search).has('fixed');
+
+const SHOTS = [
+  { start: 0, dur: 2, draw(lt, dur) {
+    if (!FIXED && lt >= dur - 0.04) return;                    // ← bug：想「提前一点收尾」，结果最后 1 帧什么都没画
+    ctx.fillStyle = '#5aa9ff'; ctx.beginPath(); ctx.arc(960, 520, 160 * outExpo(range(lt, 0.1, 0.7)), 0, 7); ctx.fill();
+    ctx.font = `600 64px ${FONT}`; ctx.fillStyle = '#f2efe8'; ctx.textAlign = 'center'; ctx.fillText('镜头 A', 960, 820);
+  } },
+  { start: 2, dur: 2, draw(lt) {
+    const k = 0.4 + 0.6 * outExpo(range(lt, 0, 0.5));             // 第一帧就有东西：切镜后不能空一帧
+    ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.roundRect(960 - 160, 520 - 160 * k, 320, 320 * k, 24); ctx.fill();
+    ctx.font = `600 64px ${FONT}`; ctx.fillStyle = '#f2efe8'; ctx.textAlign = 'center'; ctx.fillText('镜头 B', 960, 820);
+  } },
+];
+window.seek = (t) => {
+  ctx.fillStyle = '#101116'; ctx.fillRect(0, 0, W, H);
+  const s = SHOTS.findLast((s) => t >= s.start) ?? SHOTS[0];
+  s.draw(t - s.start, s.dur);
+  ctx.font = `400 30px ${FONT}`; ctx.fillStyle = FIXED ? '#3ccf8e' : '#ff5a36'; ctx.textAlign = 'left';
+  ctx.fillText(FIXED ? '✅ 已修复版本' : '⚠️ 含 1 帧 bug 的版本：逐帧走到 1.97s 看看', 60, 80);
+};
+window.seek(0);
+</script></body></html>

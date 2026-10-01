@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>GPS 为什么要 4 颗卫星 · M7 示例片</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1C1C1C; overflow: hidden; }
+  canvas { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script type="module">
+// 声音先行：所有时间都来自 audio/timeline.json（由 audio/tts.py 生成）。代码里不写死秒数。
+const TL = await fetch('audio/timeline.json').then((r) => r.json());
+const L = TL.lines;
+const S = (i) => L[i].start;              // 第 i 句开始
+const E = (i) => L[i].end;                // 第 i 句结束
+
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+// ───────── LOOK.md 的 token ─────────
+const C = { bg: '#1C1C1C', white: '#ECECEC', blue: '#58C4DD', yellow: '#FFD54A', red: '#FC6255', dim: '#6b6b6b' };
+const SANS = '"PingFang SC", "Noto Sans SC", sans-serif', SERIF = '"Times New Roman", serif';
+
+// ───────── 纯函数工具 ─────────
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };   // smootherstep
+const hash = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const IN = (t, at, dur = 0.6) => ease(range(t, at, at + dur));                       // 从 at 开始的入场进度
+
+function text(str, x, y, { size = 48, weight = 300, color = C.white, align = 'center', font = SANS, alpha = 1, reveal = 1 } = {}) {
+  if (alpha <= 0 || reveal <= 0) return;
+  ctx.save(); ctx.globalAlpha *= alpha;
+  ctx.font = `${weight} ${size}px ${font}`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+  if (reveal < 1) {                                                                   // Write：从左到右揭示
+    const w = ctx.measureText(str).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    ctx.beginPath(); ctx.rect(x0 - 4, y - size, (w + 8) * reveal, size * 2); ctx.clip();
+  }
+  ctx.fillText(str, x, y); ctx.restore();
+}
+function circle(x, y, r, { color = C.white, width = 2.5, p = 1, alpha = 1, a0 = -Math.PI / 2, dash = null } = {}) {
+  if (p <= 0 || alpha <= 0 || r <= 0) return;                                        // 半径 ≤ 0 不画（声波刚出发的那几帧）
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.strokeStyle = color; ctx.lineWidth = width; if (dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.arc(x, y, r, a0, a0 + Math.PI * 2 * clamp(p)); ctx.stroke(); ctx.restore();
+}
+function ellipse(x, y, rx, ry, { color = C.white, width = 2.5, p = 1, alpha = 1 } = {}) {
+  if (p <= 0 || alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.strokeStyle = color; ctx.lineWidth = width;
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(p)); ctx.stroke(); ctx.restore();
+}
+function dot(x, y, r, color, alpha = 1) { if (r <= 0 || alpha <= 0) return; ctx.save(); ctx.globalAlpha *= alpha; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.restore(); }
+function line(x1, y1, x2, y2, { color = C.white, width = 2.5, p = 1, alpha = 1, dash = null } = {}) {
+  if (p <= 0 || alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round'; if (dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(lerp(x1, x2, clamp(p)), lerp(y1, y2, clamp(p))); ctx.stroke(); ctx.restore();
+}
+function textRow(parts, cx, y, reveal) {                                       // 一行多段文字：按实际字宽排列
+  const ws = parts.map((p) => { ctx.font = `${p.weight ?? 300} ${p.size}px ${p.font ?? SANS}`; return ctx.measureText(p.str).width + (p.pad ?? 0); });
+  let x = cx - ws.reduce((a, b) => a + b, 0) / 2;
+  parts.forEach((p, i) => { text(p.str, x + ws[i] / 2, y, { ...p, align: 'center', reveal: reveal[i] }); x += ws[i]; });
+}
+function satellite(x, y, s = 1, alpha = 1) {                                          // 卫星：机身 + 两片太阳翼
+  if (s <= 0 || alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(x, y); ctx.scale(s, s);
+  ctx.strokeStyle = C.blue; ctx.lineWidth = 2.5; ctx.strokeRect(-14, -14, 28, 28);
+  ctx.fillStyle = 'rgba(88,196,221,0.25)'; ctx.fillRect(-56, -9, 34, 18); ctx.fillRect(22, -9, 34, 18);
+  ctx.strokeRect(-56, -9, 34, 18); ctx.strokeRect(22, -9, 34, 18); ctx.restore();
+}
+function clockDigits(t, jitter) {                                                    // 母题：时钟
+  const base = 12 * 3600 + t;                                                          // 12:00:00 起走
+  const noise = jitter ? (hash(Math.floor(t * 12)) - 0.5) * jitter : 0;               // 乱跳：每秒 12 次、固定种子
+  const v = base + noise, hh = Math.floor(v / 3600), mm = Math.floor(v / 60) % 60, ss = v % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${ss.toFixed(3).padStart(6, '0')}`;
+}
+function phone(x, y, s, { t, jitter = 0, alpha = 1, p = 1 } = {}) {
+  if (alpha <= 0 || p <= 0) return;
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(x, y); ctx.scale(s, s);
+  ctx.strokeStyle = C.white; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.roundRect(-150, -230, 300, 460, 40); ctx.stroke(); ctx.restore();
+  if (p >= 1) text(clockDigits(t, jitter), x, y - 20 * s, { size: 38 * s, weight: 500, font: '"SF Mono", Menlo, monospace', color: jitter ? C.red : C.yellow, alpha });
+}
+
+// ───────── 镜头（与 STORYBOARD.md 一一对应）─────────
+const EARTH_Y = 760;
+function shotA(t) {                                                                  // 钩子：乱跳的时钟
+  const p = IN(t, 0.05, 0.8);
+  phone(W / 2, 470, 1, { t, jitter: lerp(0.4, 3, IN(t, S(1), 0.8)), alpha: p, p });
+  text('GPS', W / 2, 760, { size: 56, weight: 600, color: C.blue, reveal: IN(t, S(1), 0.6) });
+  text('时间差 10 亿分之一秒 ≈ 距离差 30 厘米', W / 2, 840, { size: 36, color: C.dim, reveal: IN(t, S(1) + 0.9, 0.8) });
+}
+function shotB(t) {                                                                  // 问题
+  const k = IN(t, S(2), 0.8);
+  ctx.save(); ctx.globalAlpha = IN(t, S(2), 0.5);
+  circle(W / 2, EARTH_Y + 1500, 1500, { p: k * 0.5, a0: -Math.PI / 2 - Math.PI * 0.25 * k, color: C.white, alpha: 0.7 });
+  ctx.restore();
+  dot(W / 2, EARTH_Y, 12 * IN(t, S(2) + 0.3, 0.4), C.yellow);
+  text('你在哪？', W / 2, EARTH_Y - 60, { size: 40, color: C.yellow, reveal: IN(t, S(2) + 0.6, 0.6) });
+  textRow([{ str: '为什么需要', size: 72 }, { str: '4', size: 110, font: SERIF, weight: 400, color: C.yellow, pad: 36 }, { str: '颗卫星？', size: 72 }],
+    W / 2, 300, [IN(t, S(3), 0.7), IN(t, S(3) + 0.7, 0.3), IN(t, S(3) + 0.9, 0.5)]);
+}
+function shotC(t) {                                                                  // 打雷：时间差 = 距离
+  const t0 = S(5), speed = 260;                                                       // 声波：每秒 260px（3 秒走完）
+  const bx = 360, px = 360 + speed * 3;
+  line(bx - 30, 220, bx + 10, 330, { color: C.yellow, width: 6, p: IN(t, t0, 0.15) }); // 闪电
+  line(bx + 10, 330, bx - 20, 340, { color: C.yellow, width: 6, p: IN(t, t0 + 0.1, 0.1) });
+  line(bx - 20, 340, bx + 20, 460, { color: C.yellow, width: 6, p: IN(t, t0 + 0.15, 0.15) });
+  const el = clamp(t - t0, 0, 3);                                                     // 已过去的秒数（匀速：linear）
+  for (let k = 0; k < 3; k++) circle(bx, 460, speed * el - k * 40, { color: C.white, width: 2, a0: -Math.PI / 6, p: 1 / 6, alpha: (0.7 - k * 0.2) * (t > t0 ? 1 : 0) });  // 只画朝向「你」的 60° 弧
+  dot(px, 460, 14, C.yellow, IN(t, S(4), 0.5));                                       // 你
+  text('你', px, 520, { size: 36, color: C.yellow, alpha: IN(t, S(4), 0.5) });
+  text(`${Math.min(3, Math.floor(el)) || ''}${el >= 1 ? ' 秒' : ''}`, (bx + px) / 2, 600, { size: 64, weight: 500, font: SERIF, alpha: t > t0 + 1 ? 1 : 0 });
+  const d = IN(t, S(6), 0.6);
+  line(bx, 700, lerp(bx, px, d), 700, { width: 3 });
+  text('≈ 1 公里', (bx + px) / 2, 760, { size: 52, color: C.yellow, reveal: IN(t, S(6) + 0.5, 0.6) });
+  text('声速约 343 米/秒 × 3 秒', (bx + px) / 2, 830, { size: 30, color: C.dim, reveal: IN(t, S(6) + 1.0, 0.6) });
+}
+function shotD(t) {                                                                  // 卫星广播
+  const sx = 420, sy = 220, px = 1500, py = 700;
+  satellite(sx, sy, IN(t, S(7), 0.5));
+  for (let k = 0; k < 3; k++) {                                                       // 广播波纹：周期 1.2s
+    const ph = ((t - S(7)) / 1.2 + k / 3) % 1;
+    if (t > S(7)) circle(sx, sy, 40 + ph * 160, { color: C.blue, width: 2, alpha: 0.5 * (1 - ph) });
+  }
+  const b = IN(t, S(8), 0.6);
+  ctx.save(); ctx.globalAlpha = b; ctx.strokeStyle = C.white; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(560, 120, 760, 150, 18); ctx.stroke(); ctx.restore();
+  text('我在 (x, y, z)', 600, 170, { size: 40, align: 'left', reveal: IN(t, S(8) + 0.2, 0.7) });
+  text(`现在是 ${clockDigits(t, 0)}`, 600, 228, { size: 40, align: 'left', color: C.blue, reveal: IN(t, S(8) + 1.0, 0.8) });
+  phone(px, py, 0.55, { t, jitter: 3, alpha: IN(t, S(9), 0.5) });
+  const f = IN(t, S(9) + 0.3, 1.4);                                                   // 信号点飞向手机
+  line(sx, sy, px, py - 120, { color: C.blue, width: 2, p: f, dash: [10, 10] });
+  if (f > 0 && f < 1) dot(lerp(sx, px, f), lerp(sy, py - 120, f), 10, C.blue);
+  const r = IN(t, S(10), 0.8);
+  line(sx, 900, lerp(sx, px, r), 900, { color: C.yellow, width: 3 });
+  text('晚到 0.067 秒  →  约 2 万公里', (sx + px) / 2, 860, { size: 40, color: C.yellow, reveal: IN(t, S(10) + 0.6, 0.8) });
+}
+// 几何（E、F 共用）：三颗卫星的球面在画面上的投影
+const A = [560, 420], B = [1300, 330], CC = [1720, 410], P = [960, 760], Q = [960, 60];
+const rA = Math.hypot(P[0] - A[0], P[1] - A[1]), rB = Math.hypot(P[0] - B[0], P[1] - B[1]), rC = Math.hypot(P[0] - CC[0], P[1] - CC[1]);
+function geometry(t, wobble = 0) {
+  const dimA = 1 - 0.6 * IN(t, S(12), 0.5), dimB = 1 - 0.6 * IN(t, S(13), 0.5);       // 新的来了，旧的变暗
+  circle(W / 2, EARTH_Y + 1500, 1500, { alpha: 0.35, width: 2 });
+  satellite(...A, 1.3 * IN(t, S(11), 0.4));
+  circle(...A, rA + wobble, { color: C.blue, p: IN(t, S(11) + 0.3, 1.0), alpha: dimA, a0: 0.9 });
+  satellite(...B, 1.3 * IN(t, S(12), 0.4));
+  circle(...B, rB + wobble, { color: C.blue, p: IN(t, S(12) + 0.3, 1.0), alpha: dimB, a0: 2.2 });
+  ellipse(960, 410, 90, 350, { color: C.yellow, width: 3, p: IN(t, S(12) + 1.4, 1.0), alpha: 1 - 0.5 * IN(t, S(13) + 1.2, 0.5) });
+  satellite(...CC, 1.3 * IN(t, S(13), 0.4));
+  circle(...CC, rC + wobble, { color: C.blue, p: IN(t, S(13) + 0.3, 1.0), a0: 2.6 });
+  const two = IN(t, S(13) + 1.2, 0.4);
+  dot(...P, 13 * two, C.yellow); dot(...Q, 13 * two, C.yellow);
+  const x = IN(t, S(14) + 0.4, 0.5);                                                  // 太空里那个点：打叉
+  line(Q[0] - 26, Q[1] - 26, Q[0] + 26, Q[1] + 26, { color: C.red, width: 6, p: x });
+  line(Q[0] + 26, Q[1] - 26, Q[0] - 26, Q[1] + 26, { color: C.red, width: 6, p: IN(t, S(14) + 0.7, 0.4) });
+  text('在太空里，排除', Q[0] + 60, Q[1] + 6, { size: 34, color: C.red, align: 'left', reveal: IN(t, S(14) + 1.0, 0.6) });
+  text('你在这里', P[0] + 40, P[1] + 50, { size: 34, color: C.yellow, align: 'left', reveal: IN(t, S(14) + 1.6, 0.6) });
+  const label = t < S(12) ? '1 颗 → 一个球面' : t < S(13) ? '2 颗 → 交成一个圆' : '3 颗 → 两个点';
+  text(label, 120, 120, { size: 44, align: 'left', alpha: IN(t, S(11), 0.5) * (t < S(15) ? 1 : 0.35) });
+}
+function shotE(t) { geometry(t); }
+function shotF(t) {                                                                  // 危机：时钟误差 → 所有距离一起错
+  const amp = 70 * IN(t, S(16), 0.6), wob = amp * Math.sin((t - S(16)) * 5);
+  geometry(t, wob);
+  const blur = IN(t, S(16), 0.6);
+  for (let k = 0; k < 14; k++) dot(P[0] + (hash(k) - 0.5) * 120 * blur, P[1] + (hash(k + 50) - 0.5) * 90 * blur, 9, C.red, 0.5 * blur);
+  text('手机时钟误差 ±0.001 秒', 1880, 120, { size: 40, color: C.red, align: 'right', reveal: IN(t, S(15) + 0.6, 0.8) });
+  text('1 毫秒 × 光速 = 300 公里', 1880, 190, { size: 40, color: C.red, align: 'right', reveal: IN(t, S(16) + 0.8, 0.8) });
+  text('未知数：', 1260, 880, { size: 44, align: 'left', reveal: IN(t, S(17), 0.5) });
+  text('x  y  z', 1440, 880, { size: 52, font: SERIF, align: 'left', reveal: IN(t, S(17) + 0.4, 0.5) });
+  text('t', 1640, 880, { size: 60, font: SERIF, color: C.red, align: 'left', reveal: IN(t, S(17) + 1.0, 0.3) });
+}
+function shotG(t) {                                                                  // 答案：4 个未知数 = 4 颗卫星
+  const vars = ['x', 'y', 'z', 't'];
+  vars.forEach((v, i) => {
+    const x = 540 + i * 280, k = IN(t, S(18) + i * 0.25, 0.4);
+    ctx.save(); ctx.globalAlpha = k; ctx.strokeStyle = i === 3 ? C.red : C.white; ctx.lineWidth = 3;
+    ctx.strokeRect(x - 70, 520, 140, 140); ctx.restore();
+    text(v, x, 590, { size: 84, font: SERIF, color: i === 3 ? C.red : C.white, alpha: k });
+    const s = IN(t, S(19) + i * 0.3, 0.4);
+    satellite(x, 260, s);
+    line(x, 300, x, 515, { color: C.blue, width: 2, p: IN(t, S(19) + i * 0.3 + 0.2, 0.4), dash: [8, 8] });
+  });
+  text('三维位置 + 时间 = 4 个未知数', W / 2, 760, { size: 48, reveal: IN(t, S(18) + 1.2, 0.8) });
+  text('4', W / 2 - 230, 860, { size: 120, font: SERIF, color: C.yellow, alpha: IN(t, S(19) + 1.4, 0.3) });
+  text('个方程 = 4 颗卫星', W / 2 + 40, 860, { size: 52, color: C.yellow, reveal: IN(t, S(19) + 1.5, 0.6) });
+}
+function shotH(t) {                                                                  // 回扣：时钟稳了
+  const fix = IN(t, S(21), 0.8);
+  phone(W / 2, 470, 1, { t, jitter: 3 * (1 - fix), alpha: IN(t, S(20) - 0.1, 0.6) });
+  const pin = IN(t, S(20) + 0.6, 0.6);                                                 // 定位针落下
+  dot(W / 2, lerp(60, 160, pin), 18 * pin, C.yellow);
+  line(W / 2, lerp(60, 160, pin), W / 2, lerp(60, 160, pin) + 40 * pin, { color: C.yellow, width: 5 });
+  text('位置 ✓', W / 2 - 160, 760, { size: 48, color: C.yellow, reveal: IN(t, S(20) + 1.2, 0.6) });
+  text('时间 ✓', W / 2 + 160, 760, { size: 48, color: C.yellow, reveal: IN(t, S(21) + 0.4, 0.6) });
+}
+
+const SHOTS = [
+  { id: 'A', from: 0, draw: shotA }, { id: 'B', from: 2, draw: shotB }, { id: 'C', from: 4, draw: shotC },
+  { id: 'D', from: 7, draw: shotD }, { id: 'E', from: 11, draw: shotE }, { id: 'F', from: 15, draw: shotF, cont: true },
+  { id: 'G', from: 18, draw: shotG }, { id: 'H', from: 20, draw: shotH },
+].map((s, i, all) => ({ ...s, start: i === 0 ? 0 : S(s.from) - 0.25, end: i < all.length - 1 ? S(all[i + 1].from) - 0.25 : Infinity }));
+
+function subtitle(t) {
+  const l = L.find((l, i) => t >= l.start && t < (L[i + 1]?.start ?? Infinity));
+  if (!l || t > l.end + 0.6) return;
+  ctx.font = `500 40px ${SANS}`; const w = ctx.measureText(l.text).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.roundRect(W / 2 - w / 2 - 28, 972, w + 56, 68, 12); ctx.fill();
+  text(l.text, W / 2, 1006, { size: 40, weight: 500 });
+}
+
+window.__meta = { duration: Math.ceil((TL.duration + 0.8) * 30) / 30, fps: 30, width: W, height: H };
+window.seek = (t) => {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const s = SHOTS.findLast((s) => t >= s.start) ?? SHOTS[0];
+  const next = SHOTS[SHOTS.indexOf(s) + 1];
+  // 场景结束前 0.3s 整体淡出；F 延续 E 的画面，不淡出
+  ctx.globalAlpha = next && !next.cont ? 1 - range(t, s.end - 0.3, s.end) : 1;
+  s.draw(t);
+  ctx.globalAlpha = 1;
+  subtitle(t);
+};
+window.seek(0);
+</script>
+</body>
+</html>

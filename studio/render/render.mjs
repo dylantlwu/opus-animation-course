@@ -66,6 +66,8 @@ try {
   else fail('需要 --clip / --sheet / --strip / --still / --verify 之一');
 
   if (pageErrors.length) fail(`页面报错 ${pageErrors.length} 条：\n  ` + pageErrors.slice(0, 5).join('\n  '));
+} catch (e) {
+  fail(e.message);
 } finally {
   await browser.close();
   server.close();
@@ -101,13 +103,22 @@ async function renderClip(page, meta, fps, shot) {
   const ffDone = new Promise((res, rej) => ff.on('close', (c) => (c === 0 ? res() : rej(new Error(`ffmpeg 退出码 ${c}`)))));
   ff.on('error', (e) => fail(`无法启动 ffmpeg（${FFMPEG}）：${e.message}——在 studio/ 下运行 npm install`));
   const t0 = Date.now();
-  for (let i = 0; i < frames; i++) {
-    for (let k = 0; k < blur; k++) {
-      const t = (i + (blur > 1 ? (k / blur) * shutter : 0)) / fps;
-      const png = await shot(Math.min(t, meta.duration - 1e-6));
-      if (!ff.stdin.write(png)) await new Promise((r) => ff.stdin.once('drain', r));
+  let t = 0;
+  try {
+    for (let i = 0; i < frames; i++) {
+      for (let k = 0; k < blur; k++) {
+        t = (i + (blur > 1 ? (k / blur) * shutter : 0)) / fps;
+        const png = await shot(Math.min(t, meta.duration - 1e-6));
+        if (!ff.stdin.write(png)) await new Promise((r) => ff.stdin.once('drain', r));
+      }
+      if (i % 30 === 0 || i === frames - 1) process.stderr.write(`\r  帧 ${i + 1}/${frames}  ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     }
-    if (i % 30 === 0 || i === frames - 1) process.stderr.write(`\r  帧 ${i + 1}/${frames}  ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  } catch (e) {
+    // 不留半成品：ffmpeg 会把已收到的帧封装成一个「看起来正常」的 MP4（音频完整、画面半截）
+    ffDone.catch(() => {}); // 是我们主动杀掉的，不算 ffmpeg 失败
+    ff.kill('SIGKILL');
+    fs.rmSync(out, { force: true });
+    throw new Error(`渲染在 t=${t.toFixed(3)}s 失败，已删除不完整的 ${path.relative(process.cwd(), out)}\n  ${e.message.split('\n')[0]}`);
   }
   ff.stdin.end();
   await ffDone;
@@ -117,7 +128,8 @@ async function renderClip(page, meta, fps, shot) {
 async function contactSheet(page, times, shot, fps, cols = Number(opt.cols ?? Math.min(times.length, 4))) {
   const w = Number(opt.w ?? 480);
   const cells = [];
-  for (const t of times) cells.push({ t, src: 'data:image/png;base64,' + (await shot(t)).toString('base64') });
+  // 对齐到真实帧时间：成片里只存在 i/fps 这些时刻，审片看到的必须是同一批帧（避免 1.99999 被当成 2.000）
+  for (const t of times.map((t) => Math.round(t * fps) / fps)) cells.push({ t, src: 'data:image/png;base64,' + (await shot(t)).toString('base64') });
   const sheet = await page.context().newPage();
   await sheet.setViewportSize({ width: cols * (w + 12) + 12, height: 200 });
   await sheet.setContent(`<body style="margin:0;background:#16161a;font:14px ui-monospace,monospace;color:#cfd2dc">
