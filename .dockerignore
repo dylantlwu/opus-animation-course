@@ -1,0 +1,7 @@
+**/node_modules
+**/out
+site/docs/.vitepress/cache
+site/docs/.vitepress/dist
+.git
+.claude
+TODO.md

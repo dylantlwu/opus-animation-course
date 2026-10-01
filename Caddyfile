@@ -1,0 +1,18 @@
+{
+	admin off
+	# HTTPS 由 Railway 边缘负责，容器内只跑 HTTP
+	auto_https off
+}
+
+:{$PORT:8080} {
+	root * /srv
+	encode gzip
+	# VitePress cleanUrls：/roadmap → /roadmap.html，/m00/ → /m00/index.html
+	try_files {path} {path}.html {path}/index.html
+	file_server
+
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+}
