@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>M8 · 动态字体宣传片（虚构产品）</title>
+<style>html,body{margin:0;height:100%;background:#F7F6F2;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+// 8 秒宣传片：痛点 → 转折 → 产品 → 卖点 → CTA。120 BPM，所有事件落在拍点上。
+// 风格卡 ⑧：暖白底、粗无衬线、每段只有一个词用衬线斜体、文字从遮罩线下升起、不淡入。?beats=1 显示节拍网格。
+window.__meta = { duration: 8, fps: 30, width: 1920, height: 1080 };
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+const SANS = '"PingFang SC","Noto Sans SC",sans-serif', SERIF = '"Songti SC","Times New Roman",serif';
+const C = { bg: '#F7F6F2', ink: '#15151A', mute: '#9A978F', accent: '#2F5BFF', card: '#FFFFFF' };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const spring = (x) => (x <= 0 ? 0 : 1 - Math.exp(-6 * x) * Math.cos(9 * x));     // 闭式弹簧，轻微过冲
+const BPM = 120, BEAT = 60 / BPM, B = (n) => n * BEAT;                           // B(n) = 第 n 拍的时刻
+const SHOW_BEATS = new URLSearchParams(location.search).has('beats');
+
+// 一行字，逐词从遮罩线下升起（mask reveal）；words: [{ s, serif?, color?, at: 拍号 }]
+function rise(words, x, y, size, t, { exitAt = null } = {}) {
+  let cx = x;
+  for (const w of words) {
+    const font = w.serif ? `italic 400 ${size * 1.05}px ${SERIF}` : `800 ${size}px ${SANS}`;
+    ctx.font = font; const ww = ctx.measureText(w.s).width;
+    const k = outExpo(range(t, B(w.at), B(w.at) + 0.35));
+    const out = exitAt != null ? outExpo(range(t, B(exitAt), B(exitAt) + 0.3)) : 0;   // 出场：向上收进遮罩
+    ctx.save(); ctx.beginPath(); ctx.rect(cx - 10, y - size * 1.05, ww + 20, size * 1.35); ctx.clip();
+    ctx.fillStyle = w.color ?? C.ink; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(w.s, cx, y + (1 - k) * size * 1.2 - out * size * 1.3); ctx.restore();
+    cx += ww + size * (w.serif ? 0.3 : 0.12);           // 斜体会向右倾出测量宽度，后面多留空
+  }
+}
+
+window.seek = (t) => {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'left';
+  // ① 痛点（拍 0–3）
+  if (t < B(4)) rise([{ s: '做视频', at: 0 }, { s: '最难的，', at: 1 }, { s: '不是', at: 2 }, { s: '剪辑。', at: 3, color: C.mute }], 200, 600, 128, t, { exitAt: 3.6 });
+  // ② 转折（拍 4–7）：只有一个词用衬线斜体
+  else if (t < B(8)) rise([{ s: '是', at: 4 }, { s: '想清楚', at: 5, serif: true, color: C.accent }, { s: '每个镜头。', at: 6 }], 200, 600, 128, t, { exitAt: 7.6 });
+  // ③ 产品（拍 8–11）：一个点长成卡片（形变，不切）
+  else if (t < B(12)) {
+    const k = spring(range(t, B(8), B(8) + 0.7));
+    const w = lerp(24, 1100, k), h = lerp(24, 560, k), r = lerp(12, 36, k);
+    ctx.fillStyle = C.card; ctx.shadowColor = 'rgba(0,0,0,0.08)'; ctx.shadowBlur = 40 * k;
+    ctx.beginPath(); ctx.roundRect(W / 2 - w / 2, H / 2 - h / 2, w, h, r); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.save(); ctx.beginPath(); ctx.roundRect(W / 2 - w / 2, H / 2 - h / 2, w, h, r); ctx.clip();
+    rise([{ s: '分镜本', at: 9 }], W / 2 - 480, H / 2 - 120, 96, t);
+    rise([{ s: 'Shotnote', at: 9.5, serif: true, color: C.mute }], W / 2 - 480, H / 2 - 10, 56, t);
+    ['拉片表', 'reads 检查', '导出 STORYBOARD.md'].forEach((s, i) => {          // 卖点：每拍一个
+      const at = 10 + i * 0.5, kk = outExpo(range(t, B(at), B(at) + 0.3));
+      ctx.fillStyle = C.accent; ctx.globalAlpha = kk > 0 ? 1 : 0;
+      ctx.beginPath(); ctx.arc(W / 2 - 466, H / 2 + 92 + i * 64, 8 * kk, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+      rise([{ s, at }], W / 2 - 440, H / 2 + 108 + i * 64, 38, t);
+    });
+    ctx.restore();
+  }
+  // ④ CTA（拍 12–15）
+  else {
+    rise([{ s: '先分镜，', at: 12 }, { s: '再开拍。', at: 13, serif: true, color: C.accent }], 200, 560, 128, t);
+    const k = outExpo(range(t, B(14), B(14) + 0.4));
+    ctx.fillStyle = C.ink; ctx.beginPath(); ctx.roundRect(200, 680, 300 * k, 80, 40); ctx.fill();
+    if (k > 0.6) { ctx.font = `600 34px ${SANS}`; ctx.fillStyle = C.bg; ctx.fillText('免费试用', 262, 732); }
+    ctx.font = `500 26px ${SANS}`; ctx.fillStyle = C.mute; ctx.globalAlpha = k; ctx.fillText('虚构产品，仅作课程示例', 200, 1000); ctx.globalAlpha = 1;
+  }
+  if (SHOW_BEATS) {                                                                // 节拍网格：强拍粗、弱拍细
+    for (let n = 0; n <= 16; n++) { ctx.fillStyle = n % 4 ? '#c9c6bd' : '#7d7a72'; ctx.fillRect(100 + n * 107, 1040, n % 4 ? 2 : 4, n % 4 ? 14 : 24); }
+    ctx.fillStyle = C.accent; ctx.fillRect(100 + (t / BEAT) * 107 - 2, 1030, 4, 34);
+  }
+};
+window.seek(0);
+</script></body></html>

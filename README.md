@@ -10,7 +10,8 @@
 
 - **第一阶段 · 基础**（已完成）：M0 心智模型与环境、M1 时间即函数、M2 拆片与复刻、M3 编剧 I：科普叙事
 - **专题 · 视频风格**（已完成）：风格的四层拆解框架、16 张风格卡、`LOOK.md` 写法、参考片逆向、同一镜头 × 4 种风格的同步对照
-- **第二 / 三阶段**（建设中）：视觉语言、导演工作流、声音、Remotion、Blender 3D、毕业作品
+- **第二阶段 · 导演工作流**（已完成）：M4 视觉语言、M5 导演工作流、M6 声音（配音 / 字幕 / 混音工具）、M7 项目一（附 76 秒示例片及完整导演文档包）
+- **第三阶段 · 动态图形与 3D**（已完成）：M8 动态图形 & Remotion、M9 双画幅宣传片、M10 Blender 脚本化 3D、M11 3D × 2D 合成、M12 工业化（分段 / 并行渲染、成本、发布）
 - 社区在讨论什么（2026-10 调研）、爆款拆片库、速查表
 
 网站里每个示例都是可以拖动时间轴、逐帧观察的「活」动画。
@@ -48,7 +49,9 @@ railway up --service course-site      # 在仓库根目录执行
   - `CLAUDE.md` — 给 Opus 读的导演手册（学员逐课补充）
   - `render/render.mjs` — seek(t) 渲染器：`--clip` `--sheet` `--strip` `--still` `--verify` `--blur` `--audio`
   - `render/ffmpeg.mjs` — ffmpeg 入口（ffmpeg-static）
-  - `templates/` — canvas / svg / blender 模板
+  - `templates/` — canvas / svg / blender 模板，REVIEW / HANDOFF 文档模板
+  - `audio/` — `tts.py`（逐句配音 → timeline.json + 字幕）、`mix.py`（避让 + 响度标准化）
+  - `examples/` — `gps/`（76 秒示例片）、`blender-overlay/`（3D × 2D 合成）
   - `styles/` — `LOOK.md` 风格模板与范例
   - `exercises/` — 每课作业
   - `work/` — 你的片子

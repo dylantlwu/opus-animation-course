@@ -53,7 +53,7 @@ export default defineConfig({
         ],
       },
       {
-        text: '第三阶段 · 动态图形与 3D 🚧',
+        text: '第三阶段 · 动态图形与 3D',
         collapsed: false,
         items: [
           { text: 'M8 动态图形 & Remotion', link: '/m08/' },

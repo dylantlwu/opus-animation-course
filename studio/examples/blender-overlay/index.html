@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>M11 示例 · Blender 3D × HTML 2D 合成</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1C1C1C; overflow: hidden; }
+  canvas { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script type="module">
+// 三层，同一个时钟：
+//   ① 2D 背景（这里画） ② Blender 渲染的透明帧（3D：空间、光影） ③ 2D 信息层（标签、测距线）
+// 位置对齐靠 track.json：Blender 导出的「每一帧每个物体在画面上的像素坐标」。
+// 先渲染素材（在 studio/ 下）：
+//   blender -b --factory-startup -P templates/blender/scene.py -- --frames 1-96 --res 50 --transparent --track out/blender-track/track.json --out out/blender-track/
+const BASE = '../../out/blender-track/';
+const TR = await fetch(BASE + 'track.json').then((r) => r.json());
+const F0 = TR.frame_start, N = TR.frame_end - F0 + 1, FPS = TR.fps;
+const frames = await Promise.all(Array.from({ length: N }, (_, i) => new Promise((ok, fail) => {
+  const im = new Image();
+  im.onload = () => ok(im);
+  im.onerror = () => fail(new Error(`缺少 Blender 帧 ${BASE}${String(F0 + i).padStart(4, '0')}.png —— 先按文件头注释渲染素材`));
+  im.src = `${BASE}${String(F0 + i).padStart(4, '0')}.png`;
+})));
+
+const W = 1920, H = 1080, ctx = document.getElementById('c').getContext('2d');
+const C = { bg: '#1C1C1C', white: '#ECECEC', blue: '#58C4DD', yellow: '#FFD54A', dim: '#8a8a8a' };
+const SANS = '"PingFang SC", "Noto Sans SC", sans-serif';
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const ease = (x) => { x = clamp(x); return x * x * x * (x * (6 * x - 15) + 10); };
+const lerp = (a, b, k) => a + (b - a) * k;
+
+// 卫星在地球「后面」且投影落在地球圆盘内 → 被挡住，不贴标签
+const hidden = (p, e) => p[2] > e[2] && Math.hypot(p[0] - e[0], p[1] - e[1]) < e[3];
+
+function label(text, x, y, color, alpha) {
+  if (alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.font = `500 30px ${SANS}`;
+  const w = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(28,28,28,0.75)'; ctx.beginPath(); ctx.roundRect(x + 18, y - 52, w + 24, 44, 8); ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 18, y - 30); ctx.stroke();
+  ctx.fillStyle = color; ctx.fillText(text, x + 30, y - 20); ctx.restore();
+}
+
+window.__meta = { duration: N / FPS, fps: FPS, width: W, height: H };
+window.seek = (t) => {
+  const i = clamp(Math.floor(t * FPS), 0, N - 1), P = TR.frames[F0 + i], E = P.Earth, R = P.Receiver;
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);                                     // ① 2D 背景
+  ctx.drawImage(frames[i], 0, 0, W, H);                                                 // ② 3D 帧（半分辨率素材放大到 1080p）
+  // ③ 2D 信息层：测距线从卫星连到「你」，按 reads 依次出现
+  ['Sat0', 'Sat1', 'Sat2', 'Sat3'].forEach((n, k) => {
+    const p = P[n], a = ease(range(t, 1.0 + k * 0.45, 1.5 + k * 0.45)), vis = hidden(p, E) ? 0 : 1;
+    ctx.save(); ctx.globalAlpha = 0.85 * vis; ctx.strokeStyle = C.blue; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(lerp(p[0], R[0], a), lerp(p[1], R[1], a)); ctx.stroke(); ctx.restore();
+    label(`卫星 ${k + 1}`, p[0], p[1], C.blue, vis * ease(range(t, 0.8 + k * 0.45, 1.1 + k * 0.45)));
+  });
+  label('你', R[0], R[1], C.yellow, ease(range(t, 0.4, 0.8)));
+  ctx.globalAlpha = ease(range(t, 0.1, 0.6));                                          // 标题底板：3D 层的轨道线会穿过这里
+  ctx.fillStyle = 'rgba(28,28,28,0.82)'; ctx.beginPath(); ctx.roundRect(56, 44, 1130, 128, 14); ctx.fill();
+  ctx.font = `300 44px ${SANS}`; ctx.fillStyle = C.white;
+  ctx.fillText('3D 负责空间，2D 负责信息', 80, 100);
+  ctx.font = `300 28px ${SANS}`; ctx.fillStyle = C.dim; ctx.globalAlpha = ease(range(t, 0.4, 0.9));
+  ctx.fillText('标签位置来自 Blender 导出的 track.json —— 跟着 3D 物体走，转到地球背后自动隐藏', 80, 150);
+  ctx.globalAlpha = 1;
+};
+window.seek(0);
+</script>
+</body>
+</html>

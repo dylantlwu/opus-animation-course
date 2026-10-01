@@ -2,10 +2,12 @@
 // seek(t) 渲染器：任何暴露 window.__meta + window.seek(t) 的 HTML 都能被它出片。
 //
 //   node render/render.mjs <file.html> --clip   [--out=out/video.mp4] [--scale=0.5] [--blur=8] [--audio=a.wav]
+//                                              [--from=2.5 --to=6]    # 只渲染这一段（秒，按帧对齐）
 //   node render/render.mjs <file.html> --sheet=0.5,1.2,2.4 [--cols=4] [--w=480] [--out=out/sheet.png]
 //   node render/render.mjs <file.html> --strip=2.0:2.5 [--n=6]            # 一段时间内均匀取 n 帧，抓「单帧跳变」
 //   node render/render.mjs <file.html> --still=2.4 [--out=out/still.png]
 //   node render/render.mjs <file.html> --verify                            # 确定性检查（藏计时器 / 依赖 seek 顺序）
+//   node render/render.mjs <file.html> --meta                              # 只打印 __meta（JSON）
 //
 // 契约：window.__meta = { duration, fps, width, height }；window.seek(t) 是纯函数（同 t 必同帧，可返回 Promise）。
 import { chromium } from 'playwright';
@@ -52,7 +54,8 @@ try {
   }, t);
   const shot = async (t) => { await seek(t); return page.screenshot({ type: 'png' }); };
 
-  if (opt.clip) await renderClip(page, meta, fps, shot);
+  if (opt.meta) console.log(JSON.stringify({ ...meta, fps }));            // 给并行渲染等脚本读取时长 / 帧率
+  else if (opt.clip) await renderClip(page, meta, fps, shot);
   else if (opt.sheet) await contactSheet(page, (String(opt.sheet)).split(',').map(Number), shot, fps);
   else if (opt.strip) {
     const [a, b] = String(opt.strip).split(':').map(Number);
@@ -89,15 +92,19 @@ async function renderClip(page, meta, fps, shot) {
   const out = outPath('out/video.mp4');
   const blur = Number(opt.blur ?? 1); // 每帧子帧数，>1 时开启运动模糊（建议 8–16）
   const shutter = Number(opt.shutter ?? 0.5); // 180° 快门 = 曝光半帧
-  const frames = Math.round(meta.duration * fps);
+  // --from/--to：只渲染一段（只重渲改过的镜头、并行渲染的基础）。按帧号对齐，段与段之间不重不漏
+  const fFrom = Math.round(Number(opt.from ?? 0) * fps), fTo = Math.round(Number(opt.to ?? meta.duration) * fps);
+  const frames = fTo - fFrom, segDur = frames / fps;
+  if (frames <= 0) throw new Error(`--from/--to 范围为空：${opt.from} → ${opt.to}`);
   const vf = ['scale=trunc(iw/2)*2:trunc(ih/2)*2'];
   if (blur > 1) vf.unshift(`tmix=frames=${blur}`, `select='eq(mod(n\\,${blur})\\,${blur - 1})'`, `setpts=N/${fps}/TB`);
   const ffArgs = ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps * blur), '-i', '-'];
-  if (opt.audio) ffArgs.push('-i', path.resolve(opt.audio));
+  if (opt.audio) ffArgs.push('-ss', String(fFrom / fps), '-i', path.resolve(opt.audio));
   ffArgs.push('-vf', vf.join(','), '-r', String(fps), '-map', '0:v');
   if (opt.audio) ffArgs.push('-map', '1:a', '-c:a', 'aac', '-b:a', '192k');
   // 用 -t 明确时长，不用 -shortest（带字幕/音频流时 -shortest 可能卡住）
-  ffArgs.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-t', String(meta.duration), out);
+  // +faststart：索引放到文件开头，网页里边下边播
+  ffArgs.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-movflags', '+faststart', '-t', String(segDur), out);
 
   const ff = spawn(FFMPEG, ffArgs, { stdio: ['pipe', 'inherit', 'inherit'] });
   const ffDone = new Promise((res, rej) => ff.on('close', (c) => (c === 0 ? res() : rej(new Error(`ffmpeg 退出码 ${c}`)))));
@@ -107,7 +114,7 @@ async function renderClip(page, meta, fps, shot) {
   try {
     for (let i = 0; i < frames; i++) {
       for (let k = 0; k < blur; k++) {
-        t = (i + (blur > 1 ? (k / blur) * shutter : 0)) / fps;
+        t = (fFrom + i + (blur > 1 ? (k / blur) * shutter : 0)) / fps;
         const png = await shot(Math.min(t, meta.duration - 1e-6));
         if (!ff.stdin.write(png)) await new Promise((r) => ff.stdin.once('drain', r));
       }

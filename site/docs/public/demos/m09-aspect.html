@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>M9 · 16:9 与 9:16（同一时间轴，各自排版）</title>
+<style>html,body{margin:0;height:100%;background:#111;overflow:hidden}canvas{width:100vw;height:100vh;object-fit:contain;display:block}</style>
+</head><body><canvas id="c"></canvas>
+<script>
+// 竖版不是横版的裁切：同一份内容、同一条时间轴，按画幅各自排版。
+// 无参数 = 并排对照；?ar=169 / ?ar=916 = 单独全尺寸渲染；?safe=1 显示竖屏安全区。
+const q = new URLSearchParams(location.search), AR = q.get('ar'), SAFE = q.has('safe') || !AR;
+const SIZE = AR === '916' ? [1080, 1920] : [1920, 1080];
+const cv = document.getElementById('c'); [cv.width, cv.height] = SIZE;
+window.__meta = { duration: 5, fps: 30, width: SIZE[0], height: SIZE[1] };
+const ctx = cv.getContext('2d');
+const SANS = '"PingFang SC","Noto Sans SC",sans-serif', SERIF = '"Songti SC","Times New Roman",serif';
+const C = { bg: '#F7F6F2', ink: '#15151A', mute: '#9A978F', accent: '#2F5BFF', card: '#FFFFFF' };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const range = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const spring = (x) => (x <= 0 ? 0 : 1 - Math.exp(-6 * x) * Math.cos(9 * x));
+const SAFE_916 = { top: 150, bottom: 170, side: 60 };                         // 竖屏平台 UI 遮挡区（经验值）
+
+// 排版规则：横屏左文右卡；竖屏自上而下堆叠，全部落在安全区内，字号按画面宽度放大
+function layout(w, h) {
+  if (w > h) return { head: { x: 140, y: 440, size: 112 }, cta: { x: 140, y: 680 },
+    card: { cx: 1380, cy: 540, w: 640, h: 560 }, feat: 34 };
+  const s = SAFE_916, inner = w - s.side * 2;
+  return { head: { x: s.side + 20, y: s.top + 230, size: 104 }, cta: { x: s.side + 20, y: h - s.bottom - 160 },
+    card: { cx: w / 2, cy: h / 2 + 120, w: inner, h: 640 }, feat: 46 };
+}
+
+function scene(w, h, t) {
+  const L = layout(w, h);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, w, h);
+  // 标题：两行，逐行从遮罩下升起
+  [['先分镜，', C.ink, 0.1, false], ['再开拍。', C.accent, 0.4, true]].forEach(([s, color, at, serif], i) => {
+    const k = outExpo(range(t, at, at + 0.45)), y = L.head.y + i * L.head.size * 1.15;
+    ctx.font = serif ? `italic 400 ${L.head.size * 1.05}px ${SERIF}` : `800 ${L.head.size}px ${SANS}`;
+    ctx.save(); ctx.beginPath(); ctx.rect(L.head.x - 10, y - L.head.size, w, L.head.size * 1.3); ctx.clip();
+    ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.fillText(s, L.head.x, y + (1 - k) * L.head.size * 1.2); ctx.restore();
+  });
+  // 产品卡：从一个点长出来
+  const k = spring(range(t, 0.9, 1.6)), cw = lerp(20, L.card.w, k), ch = lerp(20, L.card.h, k);
+  ctx.fillStyle = C.card; ctx.shadowColor = 'rgba(0,0,0,0.08)'; ctx.shadowBlur = 40 * k;
+  ctx.beginPath(); ctx.roundRect(L.card.cx - cw / 2, L.card.cy - ch / 2, cw, ch, 32); ctx.fill(); ctx.shadowBlur = 0;
+  const x0 = L.card.cx - L.card.w / 2 + 56, y0 = L.card.cy - L.card.h / 2;
+  ctx.save(); ctx.beginPath(); ctx.roundRect(L.card.cx - cw / 2, L.card.cy - ch / 2, cw, ch, 32); ctx.clip();
+  ctx.textAlign = 'left'; ctx.fillStyle = C.ink; ctx.font = `800 ${L.feat * 2.2}px ${SANS}`; ctx.fillText('分镜本', x0, y0 + 140);
+  ['拉片表', 'reads 检查', '导出 STORYBOARD.md'].forEach((s, i) => {
+    const kk = outExpo(range(t, 1.7 + i * 0.25, 2.0 + i * 0.25)); if (kk <= 0) return;
+    const y = y0 + 260 + i * L.feat * 2.1;
+    ctx.fillStyle = C.accent; ctx.beginPath(); ctx.arc(x0 + 10, y - L.feat * 0.35, 9 * kk, 0, 7); ctx.fill();
+    ctx.fillStyle = C.ink; ctx.globalAlpha = kk; ctx.font = `600 ${L.feat}px ${SANS}`; ctx.fillText(s, x0 + 40 - (1 - kk) * 20, y); ctx.globalAlpha = 1;
+  });
+  ctx.restore();
+  // CTA
+  const c = outExpo(range(t, 3.0, 3.4));
+  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.roundRect(L.cta.x, L.cta.y, 320 * c, 88, 44); ctx.fill();
+  if (c > 0.6) { ctx.font = `600 36px ${SANS}`; ctx.fillStyle = C.bg; ctx.fillText('免费试用', L.cta.x + 88, L.cta.y + 57); }
+}
+function safeOverlay(w, h) {
+  ctx.fillStyle = 'rgba(255,90,54,0.16)';
+  ctx.fillRect(0, 0, w, SAFE_916.top); ctx.fillRect(0, h - SAFE_916.bottom, w, SAFE_916.bottom);
+  ctx.fillRect(0, 0, SAFE_916.side, h); ctx.fillRect(w - SAFE_916.side, 0, SAFE_916.side, h);
+  ctx.font = `500 28px ${SANS}`; ctx.fillStyle = '#d0432a'; ctx.textAlign = 'center';
+  ctx.fillText('平台 UI 遮挡区（标题栏 / 按钮 / 文案）', w / 2, SAFE_916.top - 50); ctx.textAlign = 'left';
+}
+
+window.seek = (t) => {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (AR) { scene(SIZE[0], SIZE[1], t); if (AR === '916' && SAFE) safeOverlay(SIZE[0], SIZE[1]); return; }
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, 1920, 1080);                     // 并排对照
+  const s1 = 1240 / 1920; ctx.save(); ctx.translate(40, 192); ctx.scale(s1, s1); scene(1920, 1080, t); ctx.restore();
+  const s2 = 960 / 1920; ctx.save(); ctx.translate(1340, 60); ctx.scale(s2, s2); scene(1080, 1920, t); safeOverlay(1080, 1920); ctx.restore();
+  ctx.font = `600 28px ${SANS}`; ctx.fillStyle = '#ddd'; ctx.fillText('16:9 · B 站 / YouTube', 40, 170); ctx.fillText('9:16 · 抖音 / 视频号', 1340, 50);
+};
+window.seek(0);
+</script></body></html>
