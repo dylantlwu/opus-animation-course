@@ -37,7 +37,7 @@ node render/render.mjs templates/canvas/index.html --clip --out=out/hello.mp4
 
 ```bash
 cd ~/ops_animation/studio
-claude --model opus --effort xhigh
+claude --model claude-opus-5-5 --effort xhigh
 ```
 
 把课程页 4.4 节的提示词发给它，走完 G0–G3。记录：

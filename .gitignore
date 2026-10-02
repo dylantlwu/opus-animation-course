@@ -16,3 +16,6 @@ site/docs/public/demos/tpl-*.html
 site/docs/public/demos/gps/
 # 可由 audio/tts.py 和 audio/mix.py 重新生成
 studio/examples/*/audio/*.wav
+
+# 参考片：仅个人学习，不入库、不发布
+studio/refs/

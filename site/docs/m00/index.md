@@ -107,10 +107,11 @@ open out/hello.mp4
 
 ```bash
 cd ~/ops_animation/studio
-claude --model opus --effort xhigh
+claude --model claude-opus-5-5 --effort xhigh
 ```
 
-- `--model opus`：用最新的 Opus（即 5.5）
+- `--model claude-opus-5-5`：**写完整的模型名**。简写 `opus` 在不同版本的 Claude Code 里可能指向不同模型——实测 Claude Code 2.1.251 里 `--model opus` 启动的是 Opus 5，不是 5.5
+- **启动后看第二行**确认模型（应为「Opus 5.5」），第三行是计费方式：写着「API Usage Billing」表示按 API 用量逐笔计费，用高档位会比较费钱
 - `--effort` 可选 `low / medium / high / xhigh / max`。社区经验：**改小问题用 medium，做新片用 xhigh，旗舰作品才用 max**（max 很费额度，收益有限）
 
 Claude Code 启动时会自动读取 `studio/CLAUDE.md`——这就是你给它的**导演手册**。打开看一遍，现在不用全懂。

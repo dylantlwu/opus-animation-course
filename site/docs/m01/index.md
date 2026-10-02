@@ -112,7 +112,7 @@ node render/render.mjs work/xxx/index.html --clip --blur=8 --shutter=1   # 360°
 
 ## 4. Opus 实操
 
-练习用精确的运动语言下单。在 `studio/` 里启动 `claude --model opus --effort xhigh`：
+练习用精确的运动语言下单。在 `studio/` 里启动 `claude --model claude-opus-5-5 --effort xhigh`：
 
 ```text
 读 CLAUDE.md。在 work/m01-logo/ 做一支 4 秒的 logo 揭示，1920×1080，30fps。

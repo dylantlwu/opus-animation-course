@@ -72,7 +72,7 @@ npx remotion still MyComp out/still.png --frame=0   # 渲染单帧（首次会�
 npx remotion render                              # 渲染整片
 
 # 4. 和 Opus 一起做
-claude --model opus --effort xhigh
+claude --model claude-opus-5-5 --effort xhigh
 ```
 
 实测记录：创建项目约 1 分钟；`npm i` 后第一次渲染会下载 Remotion 自己的 Headless Shell；渲染一帧约 3 秒。创建时 Remotion 自己会提示：「Remotion is free for teams of up to 3」——商用前看一眼 [remotion.pro/license](https://www.remotion.pro/license)。

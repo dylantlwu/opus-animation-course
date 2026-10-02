@@ -10,7 +10,7 @@ mkdir -p work/<片名>
 # 1. 旁白 → 配音 + 时间轴
 .venv/bin/python audio/tts.py work/<片名>/narration.txt --out work/<片名>/audio
 # 2. 和 Opus 走 G1–G3（课程页 3.3 的起手提示词）
-claude --model opus --effort xhigh
+claude --model claude-opus-5-5 --effort xhigh
 # 3. 混音 + 终版
 .venv/bin/python audio/mix.py --voice work/<片名>/audio/voice.wav --bgm <配乐> --out work/<片名>/audio/mix.wav
 node render/render.mjs work/<片名>/index.html --verify

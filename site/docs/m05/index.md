@@ -77,7 +77,7 @@ node render/render.mjs work/<片名>/index.html --strip=1.9:2.0333 --n=5
 
 ```bash
 cd ~/ops_animation/studio
-claude --model opus --effort high
+claude --model claude-opus-5-5 --effort high
 ```
 
 ```text

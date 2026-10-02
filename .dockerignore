@@ -7,3 +7,4 @@ site/docs/.vitepress/dist
 TODO.md
 studio/examples/*/audio/*.wav
 **/.venv
+studio/refs

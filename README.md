@@ -30,7 +30,7 @@ node render/render.mjs templates/canvas/index.html --verify
 node render/render.mjs templates/canvas/index.html --clip --out=out/hello.mp4
 
 # 和 Opus 一起做片子
-cd studio && claude --model opus --effort xhigh
+cd studio && claude --model claude-opus-5-5 --effort xhigh
 ```
 
 ## 部署

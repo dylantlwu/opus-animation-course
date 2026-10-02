@@ -4,7 +4,7 @@
 
 1. 从网站「爆款拆片库」挑一支 ≤15 秒的参考片，把拉片表写进 `breakdown.md`（模板在下面）
 2. 用「简报六部件」写 `brief.md`
-3. 在 `studio/` 启动 `claude --model opus --effort xhigh`，把 brief 发给它，走 G0–G3，产出在 `work/m02/`
+3. 在 `studio/` 启动 `claude --model claude-opus-5-5 --effort xhigh`，把 brief 发给它，走 G0–G3，产出在 `work/m02/`
 4. 用 `--sheet` 截同一批时间点，和参考片对比，把 3 条审片意见写在下面
 5. 再拉片 2 支（专业动效 + 科普视频前 30 秒），写进 `breakdown.md`
 

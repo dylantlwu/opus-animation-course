@@ -27,7 +27,7 @@
 | `xhigh` | **新片、分镜、大改**（社区默认） |
 | `max` | 旗舰作品的关键环节；很费额度，收益有限 |
 
-切换：`claude --model opus --effort xhigh`，或在会话中按 Claude Code 的方式切换。
+切换：`claude --model claude-opus-5-5 --effort xhigh`，或在会话中按 Claude Code 的方式切换。
 
 ## 改片口令
 
